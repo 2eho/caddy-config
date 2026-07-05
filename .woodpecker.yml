@@ -1,9 +1,3 @@
-# ═══════════════════════════════════════════════════════════════
-# caddy-config CI/CD Pipeline
-#
-# 当 Caddyfile 推送到 main 分支时，自动同步到服务器并 reload
-# ═══════════════════════════════════════════════════════════════
-
 skip_clone: true
 
 when:
@@ -11,28 +5,8 @@ when:
     event: [push]
 
 steps:
-  deploy-caddy:
-    image: alpine:3.21
-    environment:
-      GIT_DEPLOY_KEY:
-        from_secret: GIT_DEPLOY_KEY
-      VPS_HOST:
-        from_secret: VPS_HOST
-    commands: |
-      apk add --no-cache openssh-client curl
-
-      echo "$GIT_DEPLOY_KEY" > /tmp/git-deploy-key && chmod 600 /tmp/git-deploy-key
-      ssh-keyscan -H 159.75.153.53 >> /etc/ssh/ssh_known_hosts 2>/dev/null || true
-
-      # 直接从 GitHub 下载 Caddyfile
-      curl -sL -o /tmp/Caddyfile \
-        "https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile"
-
-      # scp 到服务器
-      scp -o StrictHostKeyChecking=no -i /tmp/git-deploy-key \
-        /tmp/Caddyfile "${VPS_HOST}:/opt/novelcat-edge/Caddyfile"
-
-      # reload
-      ssh -o StrictHostKeyChecking=no -i /tmp/git-deploy-key "${VPS_HOST}" "
-        sudo docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
-      "
+  deploy:
+    image: curlimages/curl:latest
+    commands:
+      # 直接把 Caddyfile 写到服务器上
+      - cat Caddyfile | curl -s -T - http://159.75.153.53:9876/caddyfile
