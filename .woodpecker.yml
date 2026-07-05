@@ -6,4 +6,4 @@ steps:
   deploy:
     image: curlimages/curl:latest
     commands:
-      - curl -s -X POST --data-binary @Caddyfile http://host.docker.internal:9876/
+      - curl -s -X POST --data-binary @Caddyfile http://172.17.0.1:9876/
