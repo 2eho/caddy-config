@@ -17,11 +17,11 @@ steps:
         caddy reload --config /etc/caddy/Caddyfile
       "
 
-  # 手动触发：add/delete/change 域名
+  # 手动触发：add/del/edit
   manage:
     image: docker:28-cli
     when:
-      - evaluate: 'CI_PIPELINE_EVENT == "manual" && (CADDY_ACTION == "add" || CADDY_ACTION == "delete" || CADDY_ACTION == "change")'
+      - evaluate: 'CI_PIPELINE_EVENT == "manual" && (CADDY_ACTION == "add" || CADDY_ACTION == "del" || CADDY_ACTION == "edit")'
     commands: |
       apk add --no-cache curl
 
@@ -30,7 +30,7 @@ steps:
       PORT="${CADDY_PORT}"
 
       if [ -z "$ACTION" ] || [ -z "$PREFIX" ]; then
-        echo "用法: CADDY_ACTION=add|delete|change  CADDY_DOMAIN=前缀  [CADDY_PORT=端口]"
+        echo "用法: CADDY_ACTION=add|del|edit  CADDY_DOMAIN=前缀  CADDY_PORT=端口"
         exit 1
       fi
 
@@ -51,27 +51,28 @@ steps:
           echo "已添加 ${DOMAIN} → :${PORT}"
         fi
 
-      elif [ "$ACTION" = "delete" ]; then
-        # 先删带注释的块
-        sed -i "/^# ${DOMAIN}/,/^}/ { /^# ${DOMAIN}/d; /^${DOMAIN} {/,/^}/d }" /tmp/Caddyfile
-        # 再删没注释的块
+      elif [ "$ACTION" = "del" ]; then
+        # 看看有没有这个域名
+        if ! grep -qE "^\s*${DOMAIN}\s*{" /tmp/Caddyfile 2>/dev/null; then
+          echo "域名 ${DOMAIN} 不存在，不执行"
+          exit 0
+        fi
+        sed -i "/^# ${DOMAIN}/,/^}/d" /tmp/Caddyfile
         sed -i "/^${DOMAIN} {/,/^}/d" /tmp/Caddyfile
-        # 删多余空行
         sed -i '/^$/N;/^\n$/D' /tmp/Caddyfile
         echo "已删除 ${DOMAIN}"
 
-      elif [ "$ACTION" = "change" ]; then
+      elif [ "$ACTION" = "edit" ]; then
         if [ -z "$PORT" ]; then
-          echo "change 需要 CADDY_PORT"
+          echo "edit 需要 CADDY_PORT"
           exit 1
         fi
-        if grep -qE "^\s*${DOMAIN}\s*{" /tmp/Caddyfile 2>/dev/null; then
-          sed -i "/^${DOMAIN} {/,/^}/ s/reverse_proxy 127.0.0.1:[0-9]*/reverse_proxy 127.0.0.1:${PORT}/" /tmp/Caddyfile
-          echo "已修改 ${DOMAIN} → :${PORT}"
-        else
-          echo "域名 ${DOMAIN} 不存在"
-          exit 1
+        if ! grep -qE "^\s*${DOMAIN}\s*{" /tmp/Caddyfile 2>/dev/null; then
+          echo "域名 ${DOMAIN} 不存在，不执行"
+          exit 0
         fi
+        sed -i "/^${DOMAIN} {/,/^}/ s/reverse_proxy 127.0.0.1:[0-9]*/reverse_proxy 127.0.0.1:${PORT}/" /tmp/Caddyfile
+        echo "已修改 ${DOMAIN} → :${PORT}"
       fi
 
       docker cp /tmp/Caddyfile novelcat-edge:/etc/caddy/Caddyfile
