@@ -6,13 +6,15 @@ when:
 
 steps:
   deploy:
-    image: alpine:3.21
+    image: docker:28-cli
     commands: |
       apk add --no-cache curl
 
       curl -sL -o /tmp/Caddyfile \
         https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile
 
-      cp /tmp/Caddyfile /opt/novelcat-edge/Caddyfile
+      # 复制到 novelcat-edge 容器
+      docker cp /tmp/Caddyfile novelcat-edge:/etc/caddy/Caddyfile
 
+      # reload
       docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
