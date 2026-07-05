@@ -12,7 +12,7 @@ when:
 
 steps:
   deploy-caddy:
-    image: zefire-deploy-runner:latest
+    image: zefire-deploy:latest
     environment:
       GIT_DEPLOY_KEY:
         from_secret: GIT_DEPLOY_KEY
