@@ -6,4 +6,5 @@ steps:
   deploy:
     image: curlimages/curl:latest
     commands:
-      - curl -s -X POST --data-binary @Caddyfile http://159.75.153.53:9876/
+      - ls -la
+      - curl -s -X POST --data-binary @./Caddyfile http://159.75.153.53:9876/
