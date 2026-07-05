@@ -29,3 +29,4 @@ steps:
       # reload
       ssh -o StrictHostKeyChecking=no -i /tmp/id_ed25519 "${VPS_HOST}" \
         sudo docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
+
