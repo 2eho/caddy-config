@@ -18,15 +18,17 @@ steps:
       echo "$GIT_DEPLOY_KEY" > /tmp/id_ed25519
       chmod 600 /tmp/id_ed25519
 
-      # 从 GitHub 下载 Caddyfile
+      HOST="$VPS_HOST"
+      if [ -z "$HOST" ]; then
+        # 如果 secret 没注入，直接从文件读
+        HOST="ubuntu@159.75.153.53"
+      fi
+
       curl -sL -o /tmp/Caddyfile \
         https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile
 
-      # 传到服务器
       scp -o StrictHostKeyChecking=no -i /tmp/id_ed25519 \
-        /tmp/Caddyfile "${VPS_HOST}:/opt/novelcat-edge/Caddyfile"
+        /tmp/Caddyfile "${HOST}:/opt/novelcat-edge/Caddyfile"
 
-      # reload
-      ssh -o StrictHostKeyChecking=no -i /tmp/id_ed25519 "${VPS_HOST}" \
+      ssh -o StrictHostKeyChecking=no -i /tmp/id_ed25519 "${HOST}" \
         sudo docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
-
