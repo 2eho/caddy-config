@@ -11,11 +11,11 @@ steps:
     when:
       - evaluate: 'CI_PIPELINE_EVENT != "manual"'
     commands: |
-      docker exec novelcat-edge sh -c "
-        curl -sL -o /etc/caddy/Caddyfile \
-          https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile
-        caddy reload --config /etc/caddy/Caddyfile
-      "
+      apk add --no-cache curl
+      curl -sL -o /tmp/Caddyfile \
+        https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile
+      docker cp /tmp/Caddyfile novelcat-edge:/etc/caddy/Caddyfile
+      docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
 
   # 手动触发
   manage:
@@ -46,6 +46,7 @@ steps:
 
       DOMAIN="${PREFIX}.novelcat.cloud"
 
+      # 从容器里取出当前 Caddyfile
       docker cp novelcat-edge:/etc/caddy/Caddyfile /tmp/Caddyfile
 
       if [ "$ACTION" = "add" ]; then
@@ -71,5 +72,6 @@ steps:
         echo "已删除 ${DOMAIN}"
       fi
 
+      # 写回容器
       docker cp /tmp/Caddyfile novelcat-edge:/etc/caddy/Caddyfile
       docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
