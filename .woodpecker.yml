@@ -13,16 +13,22 @@ steps:
       VPS_HOST:
         from_secret: VPS_HOST
     commands: |
-      # 装 ssh
-      apk add --no-cache openssh-client
+      apk add --no-cache openssh-client curl
 
-      # 准备 key
       mkdir -p /root/.ssh
       echo "$GIT_DEPLOY_KEY" > /root/.ssh/id_ed25519
       chmod 600 /root/.ssh/id_ed25519
       echo "Host 159.75.153.53 StrictHostKeyChecking accept-new" > /root/.ssh/config
+      echo "Host github.com StrictHostKeyChecking accept-new" > /root/.ssh/config
 
-      # 下载 Caddyfile 并传到服务器
-      scp -i /root/.ssh/id_ed25519 \
-        "https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile" \
-        "${VPS_HOST}:/opt/novelcat-edge/Caddyfile"
+      # 下载 Caddyfile
+      curl -sL -o /tmp/Caddyfile \
+        https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile
+
+      # 传到服务器
+      scp -i /root/.ssh/id_ed25519 /tmp/Caddyfile "${VPS_HOST}:/opt/novelcat-edge/Caddyfile"
+
+      # reload
+      ssh -i /root/.ssh/id_ed25519 "${VPS_HOST}" "
+        sudo docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
+      "
