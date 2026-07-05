@@ -17,37 +17,47 @@ steps:
         caddy reload --config /etc/caddy/Caddyfile
       "
 
-  # 手动触发：add/del
+  # 手动触发
   manage:
     image: docker:28-cli
     when:
-      - evaluate: 'CI_PIPELINE_EVENT == "manual" && (CADDY_ACTION == "add" || CADDY_ACTION == "del")'
+      - evaluate: 'CI_PIPELINE_EVENT == "manual"'
     commands: |
       apk add --no-cache curl
 
-      if [ -z "$CADDY_DOMAIN" ]; then
-        echo "用法: CADDY_ACTION=add|del  CADDY_DOMAIN=前缀  CADDY_PORT=端口"
+      PAIR="${CADDY_INPUT}"
+
+      if [ -z "$PAIR" ]; then
+        echo "用法: CADDY_INPUT=端口:前缀  或  前缀"
+        echo "示例: CADDY_INPUT=8090:beszel  (添加)"
+        echo "      CADDY_INPUT=beszel        (删除)"
         exit 1
       fi
 
-      DOMAIN="${CADDY_DOMAIN}.novelcat.cloud"
+      # 判断是 add 还是 del：包含冒号就是 add
+      if echo "$PAIR" | grep -q ":"; then
+        PORT="${PAIR%%:*}"
+        PREFIX="${PAIR#*:}"
+        ACTION="add"
+      else
+        PREFIX="$PAIR"
+        ACTION="del"
+      fi
+
+      DOMAIN="${PREFIX}.novelcat.cloud"
 
       docker cp novelcat-edge:/etc/caddy/Caddyfile /tmp/Caddyfile
 
-      if [ "$CADDY_ACTION" = "add" ]; then
-        if [ -z "$CADDY_PORT" ]; then
-          echo "add 需要 CADDY_PORT"
-          exit 1
-        fi
+      if [ "$ACTION" = "add" ]; then
         if grep -qE "^\s*${DOMAIN}\s*{" /tmp/Caddyfile 2>/dev/null; then
           echo "域名 ${DOMAIN} 已存在"
         else
           printf "\n# %s\n%s {\n    encode gzip\n    reverse_proxy 127.0.0.1:%s\n}\n" \
-            "$DOMAIN" "$DOMAIN" "$CADDY_PORT" >> /tmp/Caddyfile
-          echo "已添加 ${DOMAIN} → :${CADDY_PORT}"
+            "$DOMAIN" "$DOMAIN" "$PORT" >> /tmp/Caddyfile
+          echo "已添加 ${DOMAIN} → :${PORT}"
         fi
 
-      elif [ "$CADDY_ACTION" = "del" ]; then
+      elif [ "$ACTION" = "del" ]; then
         if ! grep -qE "^\s*${DOMAIN}\s*{" /tmp/Caddyfile 2>/dev/null; then
           echo "域名 ${DOMAIN} 不存在，不执行"
           exit 0
