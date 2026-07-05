@@ -17,37 +17,61 @@ steps:
         caddy reload --config /etc/caddy/Caddyfile
       "
 
-  # 手动触发：add/delete 域名
+  # 手动触发：add/delete/change 域名
   manage:
     image: docker:28-cli
     when:
-      - evaluate: 'CI_PIPELINE_EVENT == "manual" && (CADDY_ACTION == "add" || CADDY_ACTION == "delete")'
+      - evaluate: 'CI_PIPELINE_EVENT == "manual" && (CADDY_ACTION == "add" || CADDY_ACTION == "delete" || CADDY_ACTION == "change")'
     commands: |
       apk add --no-cache curl
 
-      if [ -z "$CADDY_DOMAIN" ]; then
-        echo "用法: CADDY_ACTION=add|delete  CADDY_DOMAIN=xxx.novelcat.cloud  CADDY_PORT=端口"
+      ACTION="${CADDY_ACTION}"
+      PREFIX="${CADDY_DOMAIN}"
+      PORT="${CADDY_PORT}"
+
+      if [ -z "$ACTION" ] || [ -z "$PREFIX" ]; then
+        echo "用法: CADDY_ACTION=add|delete|change  CADDY_DOMAIN=前缀  [CADDY_PORT=端口]"
         exit 1
       fi
 
+      DOMAIN="${PREFIX}.novelcat.cloud"
+
       docker cp novelcat-edge:/etc/caddy/Caddyfile /tmp/Caddyfile
 
-      if [ "$CADDY_ACTION" = "add" ]; then
-        if [ -z "$CADDY_PORT" ]; then
+      if [ "$ACTION" = "add" ]; then
+        if [ -z "$PORT" ]; then
           echo "add 需要 CADDY_PORT"
           exit 1
         fi
-        if grep -q "^${CADDY_DOMAIN} {" /tmp/Caddyfile 2>/dev/null; then
-          echo "域名 ${CADDY_DOMAIN} 已存在"
+        if grep -qE "^\s*${DOMAIN}\s*{" /tmp/Caddyfile 2>/dev/null; then
+          echo "域名 ${DOMAIN} 已存在"
         else
           printf "\n# %s\n%s {\n    encode gzip\n    reverse_proxy 127.0.0.1:%s\n}\n" \
-            "$CADDY_DOMAIN" "$CADDY_DOMAIN" "$CADDY_PORT" >> /tmp/Caddyfile
-          echo "已添加 ${CADDY_DOMAIN} → :${CADDY_PORT}"
+            "$DOMAIN" "$DOMAIN" "$PORT" >> /tmp/Caddyfile
+          echo "已添加 ${DOMAIN} → :${PORT}"
         fi
-      elif [ "$CADDY_ACTION" = "delete" ]; then
-        sed -i "/^# ${CADDY_DOMAIN}/,/^$/d" /tmp/Caddyfile
-        sed -i "/^${CADDY_DOMAIN} {/,/^}/d" /tmp/Caddyfile
-        echo "已删除 ${CADDY_DOMAIN}"
+
+      elif [ "$ACTION" = "delete" ]; then
+        # 先删带注释的块
+        sed -i "/^# ${DOMAIN}/,/^}/ { /^# ${DOMAIN}/d; /^${DOMAIN} {/,/^}/d }" /tmp/Caddyfile
+        # 再删没注释的块
+        sed -i "/^${DOMAIN} {/,/^}/d" /tmp/Caddyfile
+        # 删多余空行
+        sed -i '/^$/N;/^\n$/D' /tmp/Caddyfile
+        echo "已删除 ${DOMAIN}"
+
+      elif [ "$ACTION" = "change" ]; then
+        if [ -z "$PORT" ]; then
+          echo "change 需要 CADDY_PORT"
+          exit 1
+        fi
+        if grep -qE "^\s*${DOMAIN}\s*{" /tmp/Caddyfile 2>/dev/null; then
+          sed -i "/^${DOMAIN} {/,/^}/ s/reverse_proxy 127.0.0.1:[0-9]*/reverse_proxy 127.0.0.1:${PORT}/" /tmp/Caddyfile
+          echo "已修改 ${DOMAIN} → :${PORT}"
+        else
+          echo "域名 ${DOMAIN} 不存在"
+          exit 1
+        fi
       fi
 
       docker cp /tmp/Caddyfile novelcat-edge:/etc/caddy/Caddyfile
