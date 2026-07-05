@@ -1,5 +1,3 @@
-skip_clone: true
-
 when:
   - branch: main
     event: [push]
