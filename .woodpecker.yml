@@ -5,21 +5,22 @@ when:
     event: [push]
 
 steps:
-  # push 时自动同步
+  # push 时自动同步到系统 Caddy
   deploy:
     image: docker:28-cli
     when:
       - evaluate: 'CI_PIPELINE_EVENT != "manual"'
     commands: |
       apk add --no-cache curl
-      # 下载 Caddyfile 写入宿主机
+      # 下载 Caddyfile
       curl -sL -o /tmp/Caddyfile \
         https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile
-      # 覆盖宿主机主配置
+      # 同步到宿主机系统 Caddy 配置
       docker cp /tmp/Caddyfile novelcat-edge:/etc/caddy/Caddyfile
+      # 用 Docker 里的 caddy 命令 reload 系统 Caddy
       docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
 
-  # 手动触发
+  # 手动触发：add/del
   manage:
     image: docker:28-cli
     when:
@@ -48,6 +49,7 @@ steps:
 
       DOMAIN="${PREFIX}.novelcat.cloud"
 
+      # 从 Docker 容器里取出当前配置
       docker cp novelcat-edge:/etc/caddy/Caddyfile /tmp/Caddyfile
 
       if [ "$ACTION" = "add" ]; then
@@ -73,5 +75,6 @@ steps:
         echo "已删除 ${DOMAIN}"
       fi
 
+      # 写回容器并 reload
       docker cp /tmp/Caddyfile novelcat-edge:/etc/caddy/Caddyfile
       docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
