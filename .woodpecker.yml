@@ -11,12 +11,11 @@ steps:
     when:
       - evaluate: 'CI_PIPELINE_EVENT != "manual"'
     commands: |
-      # 通过 Docker 在宿主机上执行 curl 调系统 Caddy API
-      docker exec novelcat-edge sh -c "
+      docker run --rm --net=host curlimages/curl:latest sh -c "
         curl -sL https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile \
           | curl -s -X POST -H 'Content-Type: text/caddyfile' \
             --data-binary @- \
-            http://host.docker.internal:2019/load
+            http://127.0.0.1:2019/load
       "
 
   # 手动触发：add/del
@@ -75,10 +74,8 @@ steps:
         echo "已删除 ${DOMAIN}"
       fi
 
-      # 通过 novelcat-edge 容器里的 curl 调系统 Caddy API reload
-      docker cp /tmp/Caddyfile novelcat-edge:/tmp/Caddyfile
-      docker exec novelcat-edge sh -c "
-        curl -s -X POST -H 'Content-Type: text/caddyfile' \
-          --data-binary @/tmp/Caddyfile \
-          http://host.docker.internal:2019/load
-      "
+      # 用 host 网络的 curl 容器调系统 Caddy API reload
+      docker run --rm --net=host -v /tmp/Caddyfile:/tmp/Caddyfile curlimages/curl:latest \
+        -s -X POST -H 'Content-Type: text/caddyfile' \
+        --data-binary @/tmp/Caddyfile \
+        http://127.0.0.1:2019/load
