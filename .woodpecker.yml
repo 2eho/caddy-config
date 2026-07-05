@@ -23,48 +23,32 @@ steps:
     when:
       - evaluate: 'CI_PIPELINE_EVENT == "manual" && (CADDY_ACTION == "add" || CADDY_ACTION == "delete")'
     commands: |
-      apk add --no-cache curl git openssh-client
+      apk add --no-cache curl
 
-      ACTION="${CADDY_ACTION}"
-      DOMAIN="${CADDY_DOMAIN}"
-      PORT="${CADDY_PORT}"
-
-      if [ -z "$ACTION" ] || [ -z "$DOMAIN" ]; then
-        echo "用法: CADDY_ACTION=add|delete CADDY_DOMAIN=xxx.novelcat.cloud [CADDY_PORT=端口]"
+      if [ -z "$CADDY_DOMAIN" ]; then
+        echo "用法: CADDY_ACTION=add|delete  CADDY_DOMAIN=xxx.novelcat.cloud  CADDY_PORT=端口"
         exit 1
       fi
 
       docker cp novelcat-edge:/etc/caddy/Caddyfile /tmp/Caddyfile
 
-      if [ "$ACTION" = "add" ]; then
-        if [ -z "$PORT" ]; then
+      if [ "$CADDY_ACTION" = "add" ]; then
+        if [ -z "$CADDY_PORT" ]; then
           echo "add 需要 CADDY_PORT"
           exit 1
         fi
-        if grep -q "^${DOMAIN} {" /tmp/Caddyfile 2>/dev/null; then
-          echo "域名 ${DOMAIN} 已存在"
+        if grep -q "^${CADDY_DOMAIN} {" /tmp/Caddyfile 2>/dev/null; then
+          echo "域名 ${CADDY_DOMAIN} 已存在"
         else
           printf "\n# %s\n%s {\n    encode gzip\n    reverse_proxy 127.0.0.1:%s\n}\n" \
-            "$DOMAIN" "$DOMAIN" "$PORT" >> /tmp/Caddyfile
-          echo "已添加 ${DOMAIN} → :${PORT}"
+            "$CADDY_DOMAIN" "$CADDY_DOMAIN" "$CADDY_PORT" >> /tmp/Caddyfile
+          echo "已添加 ${CADDY_DOMAIN} → :${CADDY_PORT}"
         fi
-
-      elif [ "$ACTION" = "delete" ]; then
-        sed -i "/^# ${DOMAIN}/,/^$/d" /tmp/Caddyfile
-        sed -i "/^${DOMAIN} {/,/^}/d" /tmp/Caddyfile
-        echo "已删除 ${DOMAIN}"
+      elif [ "$CADDY_ACTION" = "delete" ]; then
+        sed -i "/^# ${CADDY_DOMAIN}/,/^$/d" /tmp/Caddyfile
+        sed -i "/^${CADDY_DOMAIN} {/,/^}/d" /tmp/Caddyfile
+        echo "已删除 ${CADDY_DOMAIN}"
       fi
 
       docker cp /tmp/Caddyfile novelcat-edge:/etc/caddy/Caddyfile
       docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
-
-      # 同步回 GitHub
-      git config user.name "woodpecker-ci"
-      git config user.email "ci@novelcat.cloud"
-      git clone --depth 1 \
-        https://github.com/2eho/caddy-config.git /tmp/repo
-      cp /tmp/Caddyfile /tmp/repo/Caddyfile
-      cd /tmp/repo
-      git add Caddyfile
-      git commit -m "chore(caddy): ${ACTION} ${DOMAIN}" || true
-      git push origin main
