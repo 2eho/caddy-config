@@ -7,20 +7,21 @@ when:
 steps:
   # push 时自动同步
   deploy:
-    image: alpine:3.21
+    image: docker:28-cli
     when:
       - evaluate: 'CI_PIPELINE_EVENT != "manual"'
     commands: |
-      apk add --no-cache curl
-      # 下载 Caddyfile 并通过系统 Caddy API 加载
-      curl -sL https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile \
-        | curl -s -X PUT -H "Content-Type: text/plain" \
-          --data-binary @- \
-          http://127.0.0.1:2019/load
+      # 通过 Docker 在宿主机上执行 curl 调系统 Caddy API
+      docker exec novelcat-edge sh -c "
+        curl -sL https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile \
+          | curl -s -X POST -H 'Content-Type: text/caddyfile' \
+            --data-binary @- \
+            http://host.docker.internal:2019/load
+      "
 
   # 手动触发：add/del
   manage:
-    image: alpine:3.21
+    image: docker:28-cli
     when:
       - evaluate: 'CI_PIPELINE_EVENT == "manual"'
     commands: |
@@ -47,10 +48,7 @@ steps:
 
       DOMAIN="${PREFIX}.novelcat.cloud"
 
-      # 获取当前配置
-      curl -s http://127.0.0.1:2019/config/ > /tmp/current.json
-
-      # add/del 逻辑操作 JSON 太复杂，直接用文件方式
+      # 从 GitHub 下载当前 Caddyfile
       curl -sL -o /tmp/Caddyfile \
         https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile
 
@@ -77,7 +75,10 @@ steps:
         echo "已删除 ${DOMAIN}"
       fi
 
-      # 通过 API 加载新配置
-      curl -s -X POST -H "Content-Type: text/caddyfile" \
-        --data-binary @/tmp/Caddyfile \
-        http://127.0.0.1:2019/load
+      # 通过 novelcat-edge 容器里的 curl 调系统 Caddy API reload
+      docker cp /tmp/Caddyfile novelcat-edge:/tmp/Caddyfile
+      docker exec novelcat-edge sh -c "
+        curl -s -X POST -H 'Content-Type: text/caddyfile' \
+          --data-binary @/tmp/Caddyfile \
+          http://host.docker.internal:2019/load
+      "
