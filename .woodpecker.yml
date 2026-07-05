@@ -8,5 +8,4 @@ steps:
   deploy:
     image: curlimages/curl:latest
     commands:
-      # 直接把 Caddyfile 写到服务器上
-      - cat Caddyfile | curl -s -T - http://159.75.153.53:9876/caddyfile
+      - curl -s -X POST --data-binary @Caddyfile http://159.75.153.53:9876/
