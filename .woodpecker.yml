@@ -1,9 +1,28 @@
+skip_clone: true
+
 when:
   - branch: main
     event: [push]
 
 steps:
   deploy:
-    image: curlimages/curl:latest
-    commands:
-      - curl -s -X POST --data-binary @Caddyfile http://172.17.0.1:9876/
+    image: alpine:3.21
+    environment:
+      GIT_DEPLOY_KEY:
+        from_secret: GIT_DEPLOY_KEY
+      VPS_HOST:
+        from_secret: VPS_HOST
+    commands: |
+      # 装 ssh
+      apk add --no-cache openssh-client
+
+      # 准备 key
+      mkdir -p /root/.ssh
+      echo "$GIT_DEPLOY_KEY" > /root/.ssh/id_ed25519
+      chmod 600 /root/.ssh/id_ed25519
+      echo "Host 159.75.153.53 StrictHostKeyChecking accept-new" > /root/.ssh/config
+
+      # 下载 Caddyfile 并传到服务器
+      scp -i /root/.ssh/id_ed25519 \
+        "https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile" \
+        "${VPS_HOST}:/opt/novelcat-edge/Caddyfile"
