@@ -1,0 +1,46 @@
+# ═══════════════════════════════════════════════════════════════
+# caddy-config CI/CD Pipeline
+#
+# 当 Caddyfile 推送到 main 分支时，自动同步到服务器并 reload
+# ═══════════════════════════════════════════════════════════════
+
+skip_clone: true
+
+when:
+  - branch: main
+    event: [push]
+
+steps:
+  deploy-caddy:
+    image: zefire-deploy-runner:latest
+    environment:
+      GIT_DEPLOY_KEY:
+        from_secret: GIT_DEPLOY_KEY
+      VPS_HOST:
+        from_secret: VPS_HOST
+    commands: |
+      set -euo pipefail
+      export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -i /tmp/git-deploy-key"
+      echo "$GIT_DEPLOY_KEY" > /tmp/git-deploy-key && chmod 600 /tmp/git-deploy-key
+      ssh-keyscan -H 159.75.153.53 >> /etc/ssh/ssh_known_hosts 2>/dev/null || true
+
+      # ── Clone caddy-config 仓库 ──
+      CACHE_DIR="/opt/woodpecker-cache/caddy-config"
+      mkdir -p /opt/woodpecker-cache
+      git config --global --add safe.directory "$CACHE_DIR" 2>/dev/null || true
+      if [ ! -d "$CACHE_DIR/.git" ]; then
+        git clone --branch main git@github.com:2eho/caddy-config.git "$CACHE_DIR"
+      fi
+      cd "$CACHE_DIR"
+      git remote set-url origin git@github.com:2eho/caddy-config.git
+      git fetch --prune origin '+refs/heads/main:refs/remotes/origin/main'
+      git reset --hard refs/remotes/origin/main
+      git clean -fd
+
+      # ── 同步到服务器并 reload ──
+      rsync -avz -e "ssh -o StrictHostKeyChecking=no -i /tmp/git-deploy-key" \
+          ./Caddyfile "${VPS_HOST}:/opt/novelcat-edge/Caddyfile"
+
+      ssh -o StrictHostKeyChecking=no -i /tmp/git-deploy-key "${VPS_HOST}" "
+        sudo docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
+      "
