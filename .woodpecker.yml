@@ -44,4 +44,3 @@ steps:
       ssh -o StrictHostKeyChecking=no -i /tmp/git-deploy-key "${VPS_HOST}" "
         sudo docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
       "
-# auto-trigger
