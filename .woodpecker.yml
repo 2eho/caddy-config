@@ -6,14 +6,11 @@ when:
 
 steps:
   deploy:
-    image: alpine:3.21
+    image: curlimages/curl:latest
     commands: |
-      # 下载 Caddyfile
       curl -sL -o /tmp/Caddyfile \
         https://raw.githubusercontent.com/2eho/caddy-config/main/Caddyfile
 
-      # 直接写本机文件
       cp /tmp/Caddyfile /opt/novelcat-edge/Caddyfile
 
-      # reload
       docker exec novelcat-edge caddy reload --config /etc/caddy/Caddyfile
