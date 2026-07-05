@@ -1,0 +1,59 @@
+{
+    email support@novelcat.cloud
+}
+
+novelcat.cloud {
+    encode gzip
+    reverse_proxy 127.0.0.1:8080
+}
+
+www.novelcat.cloud {
+    redir https://novelcat.cloud{uri} 308
+}
+
+estack-api.novelcat.cloud {
+    encode gzip
+
+    @internal path /v1/campus/internal/*
+    respond @internal 404
+
+    reverse_proxy 127.0.0.1:18080
+}
+
+estack-files.novelcat.cloud {
+    encode gzip
+    reverse_proxy 127.0.0.1:19000
+}
+
+relay.novelcat.cloud {
+    reverse_proxy 127.0.0.1:20128
+    encode zstd gzip
+}
+
+deploy.novelcat.cloud {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8095
+}
+
+ci.novelcat.cloud {
+    encode zstd gzip
+
+    @woodpecker_index_asset path /assets/index-CL8BVY2k.js
+    handle @woodpecker_index_asset {
+        root * /data/woodpecker-assets
+        file_server
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:8000
+    }
+}
+
+# ShiroMail
+mail.novelcat.cloud {
+    encode gzip
+
+    handle {
+        reverse_proxy http://127.0.0.1:8443
+    }
+}
