@@ -51,6 +51,10 @@ ci.novelcat.cloud {
 
 # ShiroMail
 mail.novelcat.cloud {
+
+    handle_path /k12/* {
+        reverse_proxy 127.0.0.1:8787
+    }
     encode gzip
 
     handle {
